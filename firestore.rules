@@ -1,0 +1,462 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateKey(key) {
+      return key is string && key.size() == 10 && key.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'sharmifrancis123@gmail.com'
+      );
+    }
+
+    function isValidLevel(lvl) {
+      return lvl in ['Beginner', 'Intermediate', 'Advanced'];
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'email',
+          'role',
+          'defaultLevel',
+          'defaultLanguage',
+          'providerPreference',
+          'lessonsCount',
+          'completedLessonsCount',
+          'assessmentsCount',
+          'averageScore',
+          'createdAt',
+          'lastActiveAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'photoURL',
+          'role',
+          'defaultLevel',
+          'defaultLanguage',
+          'providerPreference',
+          'lessonsCount',
+          'completedLessonsCount',
+          'assessmentsCount',
+          'averageScore',
+          'createdAt',
+          'lastActiveAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.role in ['learner', 'admin']
+        && isValidLevel(data.defaultLevel)
+        && data.defaultLanguage is string && data.defaultLanguage.size() >= 1 && data.defaultLanguage.size() <= 60
+        && data.providerPreference in ['auto', 'gemini-hydrogen', 'gemini-lite', 'open-compatible', 'demo']
+        && data.lessonsCount is int && data.lessonsCount >= 0 && data.lessonsCount <= 10000
+        && data.completedLessonsCount is int && data.completedLessonsCount >= 0 && data.completedLessonsCount <= 10000
+        && data.assessmentsCount is int && data.assessmentsCount >= 0 && data.assessmentsCount <= 10000
+        && (data.averageScore is int || data.averageScore is float) && data.averageScore >= 0 && data.averageScore <= 100
+        && data.createdAt is timestamp
+        && data.lastActiveAt is timestamp;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'topic',
+          'normalizedTitle',
+          'level',
+          'language',
+          'payload',
+          'meta',
+          'currentSectionIndex',
+          'completedSectionKeys',
+          'isCompleted',
+          'isBookmarked',
+          'knowledgeCheckAnswers',
+          'createdAt',
+          'lastStudiedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'topic',
+          'normalizedTitle',
+          'level',
+          'language',
+          'payload',
+          'meta',
+          'currentSectionIndex',
+          'completedSectionKeys',
+          'isCompleted',
+          'completedAt',
+          'isBookmarked',
+          'knowledgeCheckAnswers',
+          'createdAt',
+          'lastStudiedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 200
+        && data.normalizedTitle is string && data.normalizedTitle.size() >= 1 && data.normalizedTitle.size() <= 240
+        && isValidLevel(data.level)
+        && data.language is string && data.language.size() >= 1 && data.language.size() <= 60
+        && data.payload is map
+        && data.meta is map
+        && data.currentSectionIndex is int && data.currentSectionIndex >= 0 && data.currentSectionIndex <= 8
+        && data.completedSectionKeys is list && data.completedSectionKeys.size() <= 9
+        && (data.completedSectionKeys.size() == 0 || data.completedSectionKeys[0] is string)
+        && data.isCompleted is bool
+        && (!('completedAt' in data) || data.completedAt is string)
+        && data.isBookmarked is bool
+        && data.knowledgeCheckAnswers is map
+        && data.createdAt is timestamp
+        && data.lastStudiedAt is timestamp;
+    }
+
+    function isValidConversation(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'title',
+          'messages',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'title',
+          'lessonId',
+          'topicContext',
+          'levelContext',
+          'messages',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && (!('lessonId' in data) || (data.lessonId is string && data.lessonId.size() <= 128))
+        && (!('topicContext' in data) || (data.topicContext is string && data.topicContext.size() <= 200))
+        && (!('levelContext' in data) || isValidLevel(data.levelContext))
+        && data.messages is list && data.messages.size() <= 150
+        && (data.messages.size() == 0 || data.messages[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAssessment(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'topic',
+          'level',
+          'difficulty',
+          'scorePercent',
+          'correctCount',
+          'totalQuestions',
+          'records',
+          'meta',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'topic',
+          'lessonId',
+          'level',
+          'difficulty',
+          'scorePercent',
+          'correctCount',
+          'totalQuestions',
+          'records',
+          'meta',
+          'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 200
+        && (!('lessonId' in data) || (data.lessonId is string && data.lessonId.size() <= 128))
+        && isValidLevel(data.level)
+        && data.difficulty in ['Easy', 'Medium', 'Hard']
+        && data.scorePercent is int && data.scorePercent >= 0 && data.scorePercent <= 100
+        && data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 20
+        && data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 20
+        && data.records is list && data.records.size() >= 1 && data.records.size() <= 20 && data.records[0] is map
+        && data.meta is map
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll([
+          'userId',
+          'date',
+          'sectionsCompleted',
+          'lessonsCompleted',
+          'assessmentsCompleted',
+          'tutorTurns',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'date',
+          'sectionsCompleted',
+          'lessonsCompleted',
+          'assessmentsCompleted',
+          'tutorTurns',
+          'updatedAt'
+        ])
+        && isValidId(data.userId)
+        && isValidDateKey(data.date)
+        && data.sectionsCompleted is int && data.sectionsCompleted >= 0 && data.sectionsCompleted <= 500
+        && data.lessonsCompleted is int && data.lessonsCompleted >= 0 && data.lessonsCompleted <= 200
+        && data.assessmentsCompleted is int && data.assessmentsCompleted >= 0 && data.assessmentsCompleted <= 200
+        && data.tutorTurns is int && data.tutorTurns >= 0 && data.tutorTurns <= 1000
+        && data.updatedAt is timestamp;
+    }
+
+    // Boot connection check document (no PII)
+    match /test/connection {
+      allow get: if isSignedIn();
+    }
+
+    // Admin registry (read-only from client)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+    }
+
+    // User profiles (PII isolated to owner + verified admin)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().role == 'learner'
+        && incoming().createdAt == request.time
+        && incoming().lastActiveAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().lastActiveAt == request.time
+        && (
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName',
+              'photoURL',
+              'defaultLevel',
+              'defaultLanguage',
+              'providerPreference',
+              'lessonsCount',
+              'completedLessonsCount',
+              'assessmentsCount',
+              'averageScore',
+              'lastActiveAt'
+            ])
+          )
+          || isAdmin()
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // Lessons subcollection
+      match /lessons/{lessonId} {
+        allow get: if isValidId(userId) && isValidId(lessonId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && ((isSignedIn() && resource.data.userId == request.auth.uid && userId == request.auth.uid) || isAdmin());
+
+        allow create: if isValidId(userId)
+          && isValidId(lessonId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidLesson(incoming())
+          && incoming().id == lessonId
+          && incoming().userId == userId
+          && incoming().createdAt == request.time
+          && incoming().lastStudiedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(lessonId)
+          && isVerifiedUser()
+          && isValidLesson(incoming())
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().lastStudiedAt == request.time
+          && (
+            (
+              isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'currentSectionIndex',
+                'completedSectionKeys',
+                'isCompleted',
+                'completedAt',
+                'isBookmarked',
+                'knowledgeCheckAnswers',
+                'lastStudiedAt'
+              ])
+            )
+            || isAdmin()
+          );
+
+        allow delete: if isValidId(userId) && isValidId(lessonId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Conversations subcollection
+      match /conversations/{conversationId} {
+        allow get: if isValidId(userId) && isValidId(conversationId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && ((isSignedIn() && resource.data.userId == request.auth.uid && userId == request.auth.uid) || isAdmin());
+
+        allow create: if isValidId(userId)
+          && isValidId(conversationId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidConversation(incoming())
+          && incoming().id == conversationId
+          && incoming().userId == userId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(conversationId)
+          && isVerifiedUser()
+          && isValidConversation(incoming())
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (
+              isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'title',
+                'lessonId',
+                'topicContext',
+                'levelContext',
+                'messages',
+                'updatedAt'
+              ])
+            )
+            || isAdmin()
+          );
+
+        allow delete: if isValidId(userId) && isValidId(conversationId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Assessments subcollection (immutable once submitted)
+      match /assessments/{attemptId} {
+        allow get: if isValidId(userId) && isValidId(attemptId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && ((isSignedIn() && resource.data.userId == request.auth.uid && userId == request.auth.uid) || isAdmin());
+
+        allow create: if isValidId(userId)
+          && isValidId(attemptId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidAssessment(incoming())
+          && incoming().id == attemptId
+          && incoming().userId == userId
+          && incoming().createdAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(attemptId)
+          && isAdmin()
+          && isValidAssessment(incoming())
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt;
+
+        allow delete: if isValidId(userId) && isValidId(attemptId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Daily Activity subcollection
+      match /activity/{dateKey} {
+        allow get: if isValidId(userId) && isValidDateKey(dateKey) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && ((isSignedIn() && resource.data.userId == request.auth.uid && userId == request.auth.uid) || isAdmin());
+
+        allow create: if isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidActivity(incoming())
+          && incoming().date == dateKey
+          && incoming().userId == userId
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isVerifiedUser()
+          && isValidActivity(incoming())
+          && incoming().date == existing().date
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time
+          && (
+            (
+              isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'sectionsCompleted',
+                'lessonsCompleted',
+                'assessmentsCompleted',
+                'tutorTurns',
+                'updatedAt'
+              ])
+            )
+            || isAdmin()
+          );
+
+        allow delete: if isValidId(userId) && isValidDateKey(dateKey) && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // Collection-group read access strictly for verified platform admin analytics
+    match /{path=**}/lessons/{lessonId} {
+      allow list, get: if isAdmin();
+    }
+
+    match /{path=**}/assessments/{attemptId} {
+      allow list, get: if isAdmin();
+    }
+  }
+}

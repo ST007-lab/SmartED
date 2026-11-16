@@ -1,0 +1,6 @@
+{
+  "name": "SmartEd by ST Group",
+  "description": "SmartEd — Learn Anything. Understand Everything. An intelligent personal learning platform powered by AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

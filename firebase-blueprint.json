@@ -1,0 +1,361 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered SmartEd learner profile, preferences, and aggregate learning counters.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "enum": ["learner", "admin"]
+        },
+        "defaultLevel": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Advanced"]
+        },
+        "defaultLanguage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "providerPreference": {
+          "type": "string",
+          "enum": ["auto", "gemini-hydrogen", "gemini-lite", "open-compatible", "demo"]
+        },
+        "lessonsCount": {
+          "type": "integer"
+        },
+        "completedLessonsCount": {
+          "type": "integer"
+        },
+        "assessmentsCount": {
+          "type": "integer"
+        },
+        "averageScore": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "email",
+        "role",
+        "defaultLevel",
+        "defaultLanguage",
+        "providerPreference",
+        "lessonsCount",
+        "completedLessonsCount",
+        "assessmentsCount",
+        "averageScore",
+        "createdAt",
+        "lastActiveAt"
+      ]
+    },
+    "SavedLessonDoc": {
+      "title": "SavedLessonDoc",
+      "description": "Structured nine-section SmartEd lesson and learner progress state.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "normalizedTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "level": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Advanced"]
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "payload": {
+          "type": "object"
+        },
+        "meta": {
+          "type": "object"
+        },
+        "currentSectionIndex": {
+          "type": "integer"
+        },
+        "completedSectionKeys": {
+          "type": "array"
+        },
+        "isCompleted": {
+          "type": "boolean"
+        },
+        "isBookmarked": {
+          "type": "boolean"
+        },
+        "knowledgeCheckAnswers": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastStudiedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "topic",
+        "normalizedTitle",
+        "level",
+        "language",
+        "payload",
+        "meta",
+        "currentSectionIndex",
+        "completedSectionKeys",
+        "isCompleted",
+        "isBookmarked",
+        "knowledgeCheckAnswers",
+        "createdAt",
+        "lastStudiedAt"
+      ]
+    },
+    "TutorConversationDoc": {
+      "title": "TutorConversationDoc",
+      "description": "Contextual AI Tutor conversation history attached to a user and optional lesson.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "lessonId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "topicContext": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "levelContext": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Advanced"]
+        },
+        "messages": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "messages",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AssessmentAttemptDoc": {
+      "title": "AssessmentAttemptDoc",
+      "description": "Immutable completed assessment attempt with score and per-question review.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "lessonId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "level": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Advanced"]
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["Easy", "Medium", "Hard"]
+        },
+        "scorePercent": {
+          "type": "integer"
+        },
+        "correctCount": {
+          "type": "integer"
+        },
+        "totalQuestions": {
+          "type": "integer"
+        },
+        "records": {
+          "type": "array"
+        },
+        "meta": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "topic",
+        "level",
+        "difficulty",
+        "scorePercent",
+        "correctCount",
+        "totalQuestions",
+        "records",
+        "meta",
+        "createdAt"
+      ]
+    },
+    "DailyActivityDoc": {
+      "title": "DailyActivityDoc",
+      "description": "Per-day study activity metrics for a learner.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "sectionsCompleted": {
+          "type": "integer"
+        },
+        "lessonsCompleted": {
+          "type": "integer"
+        },
+        "assessmentsCompleted": {
+          "type": "integer"
+        },
+        "tutorTurns": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "date",
+        "sectionsCompleted",
+        "lessonsCompleted",
+        "assessmentsCompleted",
+        "tutorTurns",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private learner profile with preferences, aggregate counters, and timestamps."
+    },
+    "/users/{userId}/lessons/{lessonId}": {
+      "schema": { "$ref": "#/entities/SavedLessonDoc" },
+      "description": "Structured lessons and section progress belonging to a learner."
+    },
+    "/users/{userId}/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/TutorConversationDoc" },
+      "description": "AI Tutor chat sessions belonging to a learner."
+    },
+    "/users/{userId}/assessments/{attemptId}": {
+      "schema": { "$ref": "#/entities/AssessmentAttemptDoc" },
+      "description": "Completed assessment scores and question records belonging to a learner."
+    },
+    "/users/{userId}/activity/{dateKey}": {
+      "schema": { "$ref": "#/entities/DailyActivityDoc" },
+      "description": "Daily study activity counters for a learner."
+    }
+  }
+}
