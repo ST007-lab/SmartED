@@ -3,7 +3,6 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
-  GraduationCap,
   Home,
   Library,
   LogOut,
@@ -15,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import type { NavRoute } from '../types/learning';
+import { SrvLogo } from './SrvLogo';
 
 interface SidebarProps {
   activeRoute: NavRoute;
@@ -92,8 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-lg p-1"
           aria-label="SmartEd Home"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-600/15 border border-sky-500/30 text-sky-400">
-            <GraduationCap className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-600/10 border border-sky-500/30">
+            <SrvLogo size={32} />
           </div>
           {!collapsed && (
             <div className="min-w-0">

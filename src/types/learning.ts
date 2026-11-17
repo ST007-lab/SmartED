@@ -38,6 +38,7 @@ export interface ProviderMeta {
   modelName: string;
   isDemo: boolean;
   notice?: string;
+  cached?: boolean;
 }
 
 export interface ProviderStatusInfo {

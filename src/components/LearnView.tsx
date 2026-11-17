@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,6 +18,8 @@ import type {
   SavedLesson,
   UserPreferences,
 } from '../types/learning';
+import { CornerBracketFrame } from './ArchitecturalDecor';
+import { LessonCompletionModal } from './LessonCompletionModal';
 import { TopicLauncherForm } from './TopicLauncherForm';
 
 interface LearnViewProps {
@@ -114,6 +116,11 @@ export const LearnView: React.FC<LearnViewProps> = ({
   onLaunchAssessmentForLesson,
 }) => {
   const [showNewTopicForm, setShowNewTopicForm] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  useEffect(() => {
+    setShowCompletionModal(false);
+  }, [activeLesson?.id]);
 
   const currentIndex = activeLesson
     ? Math.max(0, Math.min(LESSON_SECTIONS.length - 1, activeLesson.currentSectionIndex))
@@ -225,8 +232,29 @@ export const LearnView: React.FC<LearnViewProps> = ({
     }
   };
 
+  const handleCompleteLessonAction = () => {
+    const willComplete = !activeLesson.isCompleted;
+    onToggleCompleteLesson(activeLesson.id);
+    if (willComplete) {
+      setShowCompletionModal(true);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[1200px] space-y-6 pb-14">
+      <LessonCompletionModal
+        open={showCompletionModal}
+        lesson={activeLesson}
+        onClose={() => setShowCompletionModal(false)}
+        onStartAssessment={onLaunchAssessmentForLesson}
+        onStartNextTopic={(nextTopic) =>
+          onStartLesson({
+            topic: nextTopic,
+            level: p.level,
+            language: p.language,
+          })
+        }
+      />
       {/* Generation overlay notice if switching while generating */}
       {isGenerating && (
         <div className="flex items-center gap-3 rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-3 text-sm text-sky-200">
@@ -256,8 +284,13 @@ export const LearnView: React.FC<LearnViewProps> = ({
       )}
 
       {/* Lesson Header */}
-      <header className="rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6">
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+      <header className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6">
+        <CornerBracketFrame />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sky-400/55 to-transparent"
+        />
+        <div className="relative flex flex-col lg:flex-row lg:items-start justify-between gap-5">
           <div className="space-y-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
               <span>{p.level}</span>
@@ -304,7 +337,7 @@ export const LearnView: React.FC<LearnViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onToggleCompleteLesson(activeLesson.id)}
+              onClick={handleCompleteLessonAction}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 min-h-[40px] text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeLesson.isCompleted
                   ? 'border border-emerald-500/50 bg-emerald-950/40 text-emerald-300'
@@ -319,14 +352,39 @@ export const LearnView: React.FC<LearnViewProps> = ({
           </div>
         </div>
 
-        {/* Lesson Progress Bar */}
-        <div className="mt-5 pt-4 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-            <div className="h-2 flex-1 max-w-sm rounded-full bg-slate-800 overflow-hidden">
+        {/* Lesson Progress Bar + 9-Stage Milestone Track */}
+        <div className="relative mt-5 pt-4 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[220px]">
+            <div className="h-2 flex-1 max-w-xs rounded-full bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-300"
                 style={{ width: `${Math.max(4, progressPct)}%` }}
               />
+            </div>
+            <div
+              className="hidden sm:flex items-center gap-1"
+              aria-label="Section milestones"
+            >
+              {LESSON_SECTIONS.map((sec, idx) => {
+                const visited = activeLesson.completedSectionKeys.includes(sec.key);
+                const isCurrent = idx === currentIndex;
+                return (
+                  <button
+                    key={sec.key}
+                    type="button"
+                    onClick={() => onSelectSection(activeLesson.id, idx, sec.key)}
+                    title={`${sec.number}. ${sec.title}`}
+                    aria-label={`Jump to ${sec.title}`}
+                    className={`h-2.5 w-2.5 rounded-xs transition-colors ${
+                      isCurrent
+                        ? 'bg-cyan-300 ring-2 ring-cyan-400/40'
+                        : visited
+                        ? 'bg-sky-500/80 hover:bg-sky-400'
+                        : 'bg-slate-800 hover:bg-slate-600'
+                    }`}
+                  />
+                );
+              })}
             </div>
             <span className="font-mono text-xs tabular-nums text-slate-300">
               {completedCount}/9 sections ({progressPct}%)
@@ -722,7 +780,7 @@ export const LearnView: React.FC<LearnViewProps> = ({
               <span>Previous Section</span>
             </button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {currentIndex < LESSON_SECTIONS.length - 1 ? (
                 <button
                   type="button"
@@ -733,14 +791,26 @@ export const LearnView: React.FC<LearnViewProps> = ({
                   <ArrowRight className="h-4 w-4" />
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => onLaunchAssessmentForLesson(activeLesson)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 px-5 py-2 min-h-[42px] text-xs font-semibold text-white transition-colors"
-                >
-                  <ClipboardCheck className="h-4 w-4" />
-                  <span>Start Full Assessment</span>
-                </button>
+                <>
+                  {!activeLesson.isCompleted && (
+                    <button
+                      type="button"
+                      onClick={handleCompleteLessonAction}
+                      className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-5 py-2 min-h-[42px] text-xs font-semibold text-white transition-colors"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Complete Lesson</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onLaunchAssessmentForLesson(activeLesson)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 px-5 py-2 min-h-[42px] text-xs font-semibold text-white transition-colors"
+                  >
+                    <ClipboardCheck className="h-4 w-4" />
+                    <span>Start Full Assessment</span>
+                  </button>
+                </>
               )}
             </div>
           </footer>

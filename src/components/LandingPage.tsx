@@ -5,10 +5,11 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Database,
-  GraduationCap,
   Loader2,
   MessageSquare,
 } from 'lucide-react';
+import { BlueprintGridDecor, CornerBracketFrame } from './ArchitecturalDecor';
+import { SrvLogo } from './SrvLogo';
 
 interface LandingPageProps {
   onSignIn: () => void;
@@ -69,12 +70,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* 3-Zone Top Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#060913]/90 backdrop-blur-md">
         <div className="mx-auto max-w-[1280px] flex h-16 items-center justify-between gap-8 px-4 sm:px-6 lg:px-8">
-          {/* Zone 1: Single-element brand wordmark */}
+          {/* Zone 1: Single-element brand wordmark with SRV Book+Brain emblem */}
           <a
             href="#top"
-            className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2.5 font-display text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0"
           >
-            SmartEd
+            <SrvLogo size={32} />
+            <span>SmartEd</span>
           </a>
 
           {/* Zone 2: Concise single-line nav links */}
@@ -129,10 +131,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </header>
 
-      <main id="top" className="flex-1">
+      <main id="top" className="relative flex-1 overflow-x-clip">
         {/* Hero Section */}
-        <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-16 sm:pb-20">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
+        <section className="relative mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-16 sm:pb-20">
+          <BlueprintGridDecor className="opacity-70" />
+          <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
             <div className="lg:col-span-6 flex flex-col justify-center space-y-6">
               <p className="text-xs font-medium tracking-wide text-cyan-400">
                 ST Group Educational Technology
@@ -196,6 +199,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Hero Visual Container */}
             <div className="lg:col-span-6 flex">
               <div className="relative w-full overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0B1120] min-h-[280px] lg:min-h-[380px]">
+                <CornerBracketFrame className="z-10" />
                 {!imageFailed ? (
                   <>
                     <img
@@ -212,14 +216,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </>
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center p-10 bg-gradient-to-br from-[#0B1120] via-[#060913] to-[#0E172A]">
-                    <GraduationCap className="h-12 w-12 text-sky-400" />
+                    <SrvLogo size={64} />
                     <div className="mt-4 font-display text-lg font-semibold text-white">
                       SmartEd Learning Workspace
                     </div>
                   </div>
                 )}
 
-                <div className="absolute bottom-0 inset-x-0 p-6">
+                <div className="absolute z-10 bottom-0 inset-x-0 p-6">
                   <div className="text-xs font-medium text-cyan-300">
                     Personal AI Teaching Workspace
                   </div>
@@ -384,12 +388,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         className="border-t border-slate-800/80 bg-[#060913] py-10"
       >
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="font-display text-base font-bold text-white">
-              SmartEd by ST Group
-            </div>
-            <div className="mt-1 text-xs text-slate-400">
-              Learn Anything. Understand Everything.
+          <div className="flex items-center gap-3">
+            <SrvLogo size={32} />
+            <div>
+              <div className="font-display text-base font-bold text-white">
+                SmartEd by ST Group
+              </div>
+              <div className="mt-0.5 text-xs text-slate-400">
+                Learn Anything. Understand Everything.
+              </div>
             </div>
           </div>
 

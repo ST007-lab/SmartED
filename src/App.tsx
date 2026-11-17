@@ -10,6 +10,7 @@ import { MyLearningView } from './components/MyLearningView';
 import { ProgressView } from './components/ProgressView';
 import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
+import { SrvLogo } from './components/SrvLogo';
 import { TopBar } from './components/TopBar';
 import { TutorView } from './components/TutorView';
 import {
@@ -976,9 +977,12 @@ export default function App() {
   if (!authReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#060913] text-slate-300">
-        <div className="flex items-center gap-3 text-sm">
-          <Loader2 className="h-5 w-5 animate-spin text-sky-400" />
-          <span>Loading SmartEd...</span>
+        <div className="flex flex-col items-center gap-4 text-sm">
+          <SrvLogo size={48} />
+          <div className="flex items-center gap-2.5">
+            <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
+            <span>Loading SmartEd...</span>
+          </div>
         </div>
       </div>
     );

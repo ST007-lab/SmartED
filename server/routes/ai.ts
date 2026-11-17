@@ -1,5 +1,6 @@
 import express from 'express';
 import { ProviderRequestError } from '../ai/geminiProvider.ts';
+import { buildLessonCacheKey, sharedLessonCache } from '../ai/lessonCache.ts';
 import { getProviderStatus, resolveProvider } from '../ai/provider.ts';
 import type {
   AssessmentDifficulty,
@@ -8,6 +9,27 @@ import type {
   QuestionType,
   TutorMode,
 } from '../types.ts';
+
+const UNCACHED_WINDOW_MS = 60_000;
+const MAX_UNCACHED_GENERATIONS_PER_WINDOW = 30;
+const ipGenerationHits = new Map<string, number[]>();
+
+function checkUncachedRateLimit(clientKey: string): boolean {
+  const now = Date.now();
+  const cutoff = now - UNCACHED_WINDOW_MS;
+  const existing = (ipGenerationHits.get(clientKey) ?? []).filter((ts) => ts > cutoff);
+  if (existing.length >= MAX_UNCACHED_GENERATIONS_PER_WINDOW) {
+    ipGenerationHits.set(clientKey, existing);
+    return false;
+  }
+  existing.push(now);
+  ipGenerationHits.set(clientKey, existing);
+  if (ipGenerationHits.size > 5000) {
+    const oldestKey = ipGenerationHits.keys().next().value;
+    if (oldestKey) ipGenerationHits.delete(oldestKey);
+  }
+  return true;
+}
 
 const VALID_LEVELS = new Set<KnowledgeLevel>(['Beginner', 'Intermediate', 'Advanced']);
 const VALID_DIFFICULTIES = new Set<AssessmentDifficulty>(['Easy', 'Medium', 'Hard']);
@@ -86,14 +108,37 @@ export function createAIRouter(): express.Router {
       const preference = parsePreference(body.providerPreference);
 
       const { adapter, modelOverride } = resolveProvider(preference);
-      const result = await adapter.generateLesson({
+      const providerScope = `${adapter.id}:${modelOverride ?? 'default'}`;
+      const cacheKey = buildLessonCacheKey({
         topic,
         level,
         language,
         objective,
-        modelOverride,
+        providerScope,
       });
 
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const { result, cacheHit } = await sharedLessonCache.getOrGenerate(
+        cacheKey,
+        async () => {
+          if (adapter.id !== 'demo' && !checkUncachedRateLimit(clientIp)) {
+            throw new ProviderRequestError(
+              'Too many new uncached lessons requested in a short time. Please wait a moment and try again.',
+              429,
+              'RATE_LIMIT'
+            );
+          }
+          return adapter.generateLesson({
+            topic,
+            level,
+            language,
+            objective,
+            modelOverride,
+          });
+        }
+      );
+
+      res.setHeader('X-SmartEd-Cache', cacheHit ? 'HIT' : 'MISS');
       res.json(result);
     } catch (err) {
       handleRouteError(res, err);

@@ -10,6 +10,8 @@ import type {
   UserPreferences,
 } from '../types/learning';
 import { TopicLauncherForm } from './TopicLauncherForm';
+import { BlueprintGridDecor, CornerBracketFrame } from './ArchitecturalDecor';
+import { SrvLogo } from './SrvLogo';
 
 interface HomeViewProps {
   lessons: SavedLesson[];
@@ -83,22 +85,37 @@ export const HomeView: React.FC<HomeViewProps> = ({
     <div className="mx-auto max-w-[1200px] space-y-10 pb-12">
       {/* Hero / Prominent Topic Input */}
       <section className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6 sm:p-8 lg:p-10">
+        <BlueprintGridDecor />
+        <CornerBracketFrame />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"
+        />
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -top-24 right-0 h-64 w-64 rounded-full bg-sky-500/10 blur-3xl"
         />
 
-        <div className="relative max-w-3xl">
-          <p className="text-xs font-medium tracking-wide text-cyan-400">
-            SmartEd Personal Learning Environment · ST Group
-          </p>
-          <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
-            Learn Anything. Understand Everything.
-          </h1>
-          <p className="mt-3 text-base text-slate-300 leading-relaxed max-w-[65ch]">
-            Enter any subject to generate a structured nine-part lesson, explore concepts
-            with your context-aware AI tutor, and validate mastery with interactive assessments.
-          </p>
+        <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+          <div className="max-w-3xl">
+            <p className="text-xs font-medium tracking-wide text-cyan-400">
+              SmartEd Personal Learning Environment · ST Group
+            </p>
+            <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              Learn Anything. Understand Everything.
+            </h1>
+            <p className="mt-3 text-base text-slate-300 leading-relaxed max-w-[65ch]">
+              Enter any subject to generate a structured nine-part lesson, explore concepts
+              with your context-aware AI tutor, and validate mastery with interactive assessments.
+            </p>
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="hidden md:flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-sky-500/25 bg-[#060913]/85"
+          >
+            <SrvLogo size={46} />
+          </div>
         </div>
 
         <div className="relative mt-7">
