@@ -7,6 +7,7 @@ import type {
   NavRoute,
   ProviderStatusInfo,
   SavedLesson,
+  UsageQuotaInfo,
   UserPreferences,
 } from '../types/learning';
 import { TopicLauncherForm } from './TopicLauncherForm';
@@ -18,6 +19,7 @@ interface HomeViewProps {
   assessments: AssessmentAttempt[];
   preferences: UserPreferences;
   providerStatus: ProviderStatusInfo | null;
+  usageQuota: UsageQuotaInfo | null;
   isGenerating: boolean;
   generationError: string | null;
   onStartLesson: (params: {
@@ -28,6 +30,7 @@ interface HomeViewProps {
   }) => void;
   onOpenLesson: (lessonId: string) => void;
   onNavigate: (route: NavRoute) => void;
+  onOpenOnboarding: () => void;
 }
 
 function formatRelativeDate(iso: string): string {
@@ -46,11 +49,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
   assessments,
   preferences,
   providerStatus,
+  usageQuota,
   isGenerating,
   generationError,
   onStartLesson,
   onOpenLesson,
   onNavigate,
+  onOpenOnboarding,
 }) => {
   const sortedByRecent = [...lessons].sort(
     (a, b) =>
@@ -128,8 +133,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
           />
         </div>
 
+        <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+          <span>
+            {usageQuota ? (
+              <>
+                Daily free allowance:{' '}
+                <strong className="font-mono tabular-nums text-slate-200">
+                  {usageQuota.remainingToday}
+                </strong>{' '}
+                of{' '}
+                <strong className="font-mono tabular-nums text-slate-200">
+                  {usageQuota.dailyLimit}
+                </strong>{' '}
+                new lessons remaining today
+              </>
+            ) : (
+              'Saved lessons remain free to revisit anytime'
+            )}
+          </span>
+
+          <button
+            type="button"
+            onClick={onOpenOnboarding}
+            className="text-sky-400 hover:text-sky-300 font-medium transition-colors"
+          >
+            How SmartEd Works
+          </button>
+        </div>
+
         {providerStatus && !providerStatus.liveAvailable && (
-          <p className="mt-4 text-xs text-amber-300/90">
+          <p className="mt-3 text-xs text-amber-300/90">
             Demonstration Mode active: Live AI provider is not currently configured on the
             server, so lessons will load clearly labeled sample curriculum.
           </p>

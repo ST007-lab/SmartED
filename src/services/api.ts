@@ -8,22 +8,67 @@ import type {
   ProviderStatusInfo,
   QuestionType,
   TutorMode,
+  UsageQuotaInfo,
 } from '../types/learning';
+import { auth } from './firebase';
 
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly usage?: UsageQuotaInfo;
 
-  constructor(message: string, status: number, code: string) {
+  constructor(message: string, status: number, code: string, usage?: UsageQuotaInfo) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.usage = usage;
   }
 }
 
+async function getBearerToken(forceRefresh = false): Promise<string | null> {
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
+}
+
+async function authorizedFetch(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const buildHeaders = async (forceRefresh: boolean): Promise<HeadersInit> => {
+    const token = await getBearerToken(forceRefresh);
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string> | undefined),
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  let res = await fetch(url, {
+    ...init,
+    headers: await buildHeaders(false),
+  });
+
+  // If ID token just expired, refresh once and retry
+  if (res.status === 401 && auth.currentUser) {
+    res = await fetch(url, {
+      ...init,
+      headers: await buildHeaders(true),
+    });
+  }
+
+  return res;
+}
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await authorizedFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -32,13 +77,15 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as {
     error?: string;
     code?: string;
+    usage?: UsageQuotaInfo;
   };
 
   if (!res.ok) {
     throw new ApiError(
       data.error || `Request failed with status ${res.status}`,
       res.status,
-      data.code || 'API_ERROR'
+      data.code || 'API_ERROR',
+      data.usage
     );
   }
   return data as T;
@@ -52,13 +99,33 @@ export async function fetchProviderStatus(): Promise<ProviderStatusInfo> {
   return (await res.json()) as ProviderStatusInfo;
 }
 
+export async function fetchUsageQuota(): Promise<UsageQuotaInfo> {
+  const res = await authorizedFetch('/api/ai/usage');
+  const data = (await res.json().catch(() => ({}))) as Partial<UsageQuotaInfo> & {
+    error?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    throw new ApiError(
+      data.error || 'Unable to load daily usage quota.',
+      res.status,
+      data.code || 'USAGE_ERROR'
+    );
+  }
+  return data as UsageQuotaInfo;
+}
+
 export async function generateLessonApi(params: {
   topic: string;
   level: KnowledgeLevel;
   language: string;
   objective?: string;
   providerPreference: ProviderPreference;
-}): Promise<{ lesson: GeneratedLessonPayload; meta: ProviderMeta }> {
+}): Promise<{
+  lesson: GeneratedLessonPayload;
+  meta: ProviderMeta;
+  usage?: UsageQuotaInfo;
+}> {
   return postJson('/api/ai/lesson', params);
 }
 

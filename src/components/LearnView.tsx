@@ -9,6 +9,7 @@ import {
   Info,
   Loader2,
   MessageSquare,
+  MessageSquarePlus,
   PlusCircle,
   XCircle,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import type {
   KnowledgeLevel,
   LessonSectionKey,
   SavedLesson,
+  UsageQuotaInfo,
   UserPreferences,
 } from '../types/learning';
 import { CornerBracketFrame } from './ArchitecturalDecor';
@@ -26,6 +28,7 @@ interface LearnViewProps {
   activeLesson: SavedLesson | null;
   allLessons: SavedLesson[];
   preferences: UserPreferences;
+  usageQuota: UsageQuotaInfo | null;
   isGenerating: boolean;
   generationError: string | null;
   onStartLesson: (params: {
@@ -45,6 +48,7 @@ interface LearnViewProps {
   ) => void;
   onAskTutorAboutSection: (lesson: SavedLesson, sectionTitle: string, sectionText: string) => void;
   onLaunchAssessmentForLesson: (lesson: SavedLesson) => void;
+  onOpenFeedback: (topic: string) => void;
 }
 
 export const LESSON_SECTIONS: Array<{
@@ -104,6 +108,7 @@ export const LearnView: React.FC<LearnViewProps> = ({
   activeLesson,
   allLessons,
   preferences,
+  usageQuota,
   isGenerating,
   generationError,
   onStartLesson,
@@ -114,6 +119,7 @@ export const LearnView: React.FC<LearnViewProps> = ({
   onAnswerKnowledgeCheck,
   onAskTutorAboutSection,
   onLaunchAssessmentForLesson,
+  onOpenFeedback,
 }) => {
   const [showNewTopicForm, setShowNewTopicForm] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -183,6 +189,20 @@ export const LearnView: React.FC<LearnViewProps> = ({
               onStartLesson(params);
             }}
           />
+
+          {usageQuota && (
+            <p className="mt-4 text-xs text-slate-400">
+              Daily allowance:{' '}
+              <strong className="font-mono tabular-nums text-slate-200">
+                {usageQuota.remainingToday}
+              </strong>{' '}
+              of{' '}
+              <strong className="font-mono tabular-nums text-slate-200">
+                {usageQuota.dailyLimit}
+              </strong>{' '}
+              new lessons remaining today.
+            </p>
+          )}
         </div>
 
         {allLessons.length > 0 && !activeLesson && (
@@ -415,8 +435,24 @@ export const LearnView: React.FC<LearnViewProps> = ({
               <ClipboardCheck className="h-3.5 w-3.5" />
               <span>Take Assessment</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenFeedback(p.topic)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 hover:border-slate-500 px-3 py-1.5 min-h-[36px] text-xs font-medium text-slate-300 transition-colors whitespace-nowrap"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              <span>Feedback</span>
+            </button>
           </div>
         </div>
+
+        {!activeLesson.meta.isDemo && (
+          <p className="relative mt-3 text-[11px] text-slate-500">
+            AI-Generated Lesson ({activeLesson.meta.providerLabel}) — verify critical
+            details against primary sources or report inaccuracies via Feedback.
+          </p>
+        )}
       </header>
 
       {/* Main 2-Column Lesson Layout: Section Rail + Active Section Content */}

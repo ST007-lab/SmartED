@@ -29,6 +29,9 @@ interface SidebarProps {
   userEmail: string;
   userPhotoUrl?: string | null;
   onSignOut: () => void;
+  onOpenOnboarding: () => void;
+  onOpenFeedback: () => void;
+  onOpenLegal: () => void;
 }
 
 interface NavItem {
@@ -60,6 +63,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userEmail,
   userPhotoUrl,
   onSignOut,
+  onOpenOnboarding,
+  onOpenFeedback,
+  onOpenLegal,
 }) => {
   const handleSelect = (route: NavRoute) => {
     onNavigate(route);
@@ -223,6 +229,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <LogOut className="h-3.5 w-3.5" />
               <span>Sign Out</span>
             </button>
+
+            <div className="flex items-center justify-center gap-3 pt-1 text-[11px] text-slate-500">
+              <button
+                type="button"
+                onClick={onOpenOnboarding}
+                className="hover:text-slate-300 transition-colors"
+              >
+                Guide
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={onOpenFeedback}
+                className="hover:text-slate-300 transition-colors"
+              >
+                Feedback
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={onOpenLegal}
+                className="hover:text-slate-300 transition-colors"
+              >
+                Policies
+              </button>
+            </div>
           </div>
         )}
       </div>

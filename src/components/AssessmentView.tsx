@@ -140,7 +140,16 @@ export const AssessmentView: React.FC<AssessmentViewProps> = ({
 
     try {
       const lessonSummary = targetLesson
-        ? `${targetLesson.payload.introduction.overview}\nObjectives: ${targetLesson.payload.learningObjectives.join('; ')}`
+        ? [
+            `Overview: ${targetLesson.payload.introduction.overview}`,
+            `Objectives: ${targetLesson.payload.learningObjectives.join('; ')}`,
+            `Key Concepts: ${targetLesson.payload.fundamentalConcepts
+              .map((c) => `${c.title} (${c.keyTakeaway})`)
+              .join('; ')}`,
+            `Terminology: ${targetLesson.payload.importantTerminology
+              .map((t) => t.term)
+              .join(', ')}`,
+          ].join('\n')
         : undefined;
 
       const res = await generateAssessmentApi({

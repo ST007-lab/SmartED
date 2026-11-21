@@ -2,11 +2,14 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AssessmentView } from './components/AssessmentView';
+import { FeedbackModal } from './components/FeedbackModal';
 import { GrowthView } from './components/GrowthView';
 import { HomeView } from './components/HomeView';
 import { LandingPage } from './components/LandingPage';
 import { LearnView } from './components/LearnView';
+import { LegalSupportModal, type LegalTab } from './components/LegalSupportModal';
 import { MyLearningView } from './components/MyLearningView';
+import { OnboardingModal } from './components/OnboardingModal';
 import { ProgressView } from './components/ProgressView';
 import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
@@ -14,7 +17,9 @@ import { SrvLogo } from './components/SrvLogo';
 import { TopBar } from './components/TopBar';
 import { TutorView } from './components/TutorView';
 import {
+  ApiError,
   fetchProviderStatus,
+  fetchUsageQuota,
   generateLessonApi,
   sendTutorMessageApi,
 } from './services/api';
@@ -62,6 +67,7 @@ import type {
   TutorConversation,
   TutorMessage,
   TutorMode,
+  UsageQuotaInfo,
   UserPreferences,
 } from './types/learning';
 
@@ -94,6 +100,13 @@ export default function App() {
   const [providerStatus, setProviderStatus] = useState<ProviderStatusInfo | null>(
     null
   );
+  const [usageQuota, setUsageQuota] = useState<UsageQuotaInfo | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackTopicDefault, setFeedbackTopicDefault] = useState<string | undefined>(
+    undefined
+  );
+  const [legalTab, setLegalTab] = useState<LegalTab | null>(null);
 
   // Async workflow states
   const [isGeneratingLesson, setIsGeneratingLesson] = useState(false);
@@ -151,6 +164,7 @@ export default function App() {
 
       if (!user) {
         setCloudLoading(false);
+        setUsageQuota(null);
         setStore((prev) => ({
           ...createEmptyStore(),
           preferences: {
@@ -160,6 +174,22 @@ export default function App() {
         }));
         setActiveRoute('home');
         return;
+      }
+
+      void fetchUsageQuota()
+        .then(setUsageQuota)
+        .catch(() => {
+          // Non-blocking usage preview refresh
+        });
+
+      try {
+        const seenKey = `smarted_onboarding_seen_${user.uid}`;
+        if (!window.localStorage.getItem(seenKey)) {
+          setOnboardingOpen(true);
+          window.localStorage.setItem(seenKey, '1');
+        }
+      } catch {
+        // Ignore storage restrictions
       }
 
       setCloudLoading(true);
@@ -359,6 +389,12 @@ export default function App() {
         providerPreference: store.preferences.providerPreference,
       });
 
+      if (result.usage) {
+        setUsageQuota(result.usage);
+      } else {
+        void fetchUsageQuota().then(setUsageQuota).catch(() => {});
+      }
+
       const created = createSavedLesson(result.lesson, result.meta);
       const { lesson: withFirstSection } = markSectionVisited(
         created,
@@ -381,6 +417,9 @@ export default function App() {
         storeRef.current.assessments
       );
     } catch (err) {
+      if (err instanceof ApiError && err.usage) {
+        setUsageQuota(err.usage);
+      }
       setLessonError(
         err instanceof Error ? err.message : 'Unable to generate lesson.'
       );
@@ -1019,6 +1058,12 @@ export default function App() {
         userEmail={firebaseUser.email || ''}
         userPhotoUrl={firebaseUser.photoURL}
         onSignOut={handleSignOut}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
+        onOpenFeedback={() => {
+          setFeedbackTopicDefault(activeLesson?.payload.topic);
+          setFeedbackOpen(true);
+        }}
+        onOpenLegal={() => setLegalTab('privacy')}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -1058,11 +1103,13 @@ export default function App() {
                   assessments={store.assessments}
                   preferences={store.preferences}
                   providerStatus={providerStatus}
+                  usageQuota={usageQuota}
                   isGenerating={isGeneratingLesson}
                   generationError={lessonError}
                   onStartLesson={handleStartLesson}
                   onOpenLesson={handleOpenLesson}
                   onNavigate={handleNavigate}
+                  onOpenOnboarding={() => setOnboardingOpen(true)}
                 />
               )}
 
@@ -1071,6 +1118,7 @@ export default function App() {
                   activeLesson={activeLesson}
                   allLessons={store.lessons}
                   preferences={store.preferences}
+                  usageQuota={usageQuota}
                   isGenerating={isGeneratingLesson}
                   generationError={lessonError}
                   onStartLesson={handleStartLesson}
@@ -1081,6 +1129,10 @@ export default function App() {
                   onAnswerKnowledgeCheck={handleAnswerKnowledgeCheck}
                   onAskTutorAboutSection={handleAskTutorAboutSection}
                   onLaunchAssessmentForLesson={handleLaunchAssessmentForLesson}
+                  onOpenFeedback={(topic) => {
+                    setFeedbackTopicDefault(topic);
+                    setFeedbackOpen(true);
+                  }}
                 />
               )}
 
@@ -1146,15 +1198,47 @@ export default function App() {
                 <SettingsView
                   preferences={store.preferences}
                   providerStatus={providerStatus}
+                  usageQuota={usageQuota}
                   onUpdatePreferences={handleUpdatePreferences}
                   onExportData={handleExportData}
                   onClearAllData={() => void handleClearAllData()}
+                  onOpenOnboarding={() => setOnboardingOpen(true)}
+                  onOpenFeedback={() => {
+                    setFeedbackTopicDefault(activeLesson?.payload.topic);
+                    setFeedbackOpen(true);
+                  }}
+                  onOpenLegal={(tab) => setLegalTab(tab)}
                 />
               )}
             </>
           )}
         </main>
       </div>
+
+      <OnboardingModal
+        open={onboardingOpen}
+        dailyLimit={usageQuota?.dailyLimit ?? 5}
+        onClose={() => setOnboardingOpen(false)}
+        onStartTopic={() => {
+          setStore((prev) => ({ ...prev, activeLessonId: null }));
+          setActiveRoute('learn');
+        }}
+      />
+
+      <FeedbackModal
+        open={feedbackOpen}
+        uid={firebaseUser.uid}
+        userDisplayName={firebaseUser.displayName || 'SmartEd Learner'}
+        userEmail={firebaseUser.email || ''}
+        defaultTopic={feedbackTopicDefault}
+        onClose={() => setFeedbackOpen(false)}
+      />
+
+      <LegalSupportModal
+        open={legalTab !== null}
+        initialTab={legalTab ?? 'privacy'}
+        onClose={() => setLegalTab(null)}
+      />
     </div>
   );
 }

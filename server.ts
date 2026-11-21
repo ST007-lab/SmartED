@@ -11,7 +11,37 @@ async function startServer() {
   const app = express();
   const port = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: '1mb' }));
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+
+  // Security headers (preserving iframe embedding compatibility for AI Studio preview)
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
+
+  app.use(express.json({ limit: '512kb' }));
+
+  // Handle malformed JSON request bodies cleanly without leaking parser stack details
+  app.use(
+    (
+      err: unknown,
+      _req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (err instanceof SyntaxError && 'body' in err) {
+        res.status(400).json({
+          error: 'Malformed JSON request body.',
+          code: 'INVALID_JSON',
+        });
+        return;
+      }
+      next(err);
+    }
+  );
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'smarted-backend' });

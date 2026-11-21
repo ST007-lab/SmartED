@@ -334,6 +334,77 @@
         "tutorTurns",
         "updatedAt"
       ]
+    },
+    "FeedbackSubmission": {
+      "title": "FeedbackSubmission",
+      "description": "Structured learner product feedback, usefulness ratings, and issue reports.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userDisplayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "userEmail": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["general", "feature", "issue"]
+        },
+        "topicContext": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "lessonUsefulness": { "type": "integer" },
+            "explanationClarity": { "type": "integer" },
+            "assessmentQuality": { "type": "integer" },
+            "overallExperience": { "type": "integer" }
+          },
+          "required": [
+            "lessonUsefulness",
+            "explanationClarity",
+            "assessmentQuality",
+            "overallExperience"
+          ]
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "userDisplayName",
+        "userEmail",
+        "category",
+        "ratings",
+        "comment",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -356,6 +427,10 @@
     "/users/{userId}/activity/{dateKey}": {
       "schema": { "$ref": "#/entities/DailyActivityDoc" },
       "description": "Daily study activity counters for a learner."
+    },
+    "/feedback/{feedbackId}": {
+      "schema": { "$ref": "#/entities/FeedbackSubmission" },
+      "description": "Learner product ratings, feature requests, and issue reports (owner + admin readable)."
     }
   }
 }

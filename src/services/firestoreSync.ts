@@ -19,6 +19,9 @@ import {
 import type {
   AssessmentAttempt,
   DailyActivityRecord,
+  FeedbackCategory,
+  FeedbackRatings,
+  FeedbackSubmission,
   KnowledgeLevel,
   LearningStore,
   LessonSectionKey,
@@ -839,4 +842,111 @@ export async function fetchPlatformGrowthData(): Promise<PlatformGrowthSnapshot>
     levelDistribution,
     users,
   };
+}
+
+function clampRating(n: number): number {
+  if (!Number.isFinite(n)) return 5;
+  return Math.max(1, Math.min(5, Math.round(n)));
+}
+
+export async function submitFeedbackToFirestore(params: {
+  uid: string;
+  userDisplayName: string;
+  userEmail: string;
+  category: FeedbackCategory;
+  topicContext?: string;
+  ratings: FeedbackRatings;
+  comment: string;
+}): Promise<FeedbackSubmission> {
+  const id = `fb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const path = `feedback/${id}`;
+  const cleanTopic = params.topicContext?.trim().slice(0, 200);
+  const cleanComment = params.comment.trim().slice(0, 2000);
+  const ratings: FeedbackRatings = {
+    lessonUsefulness: clampRating(params.ratings.lessonUsefulness),
+    explanationClarity: clampRating(params.ratings.explanationClarity),
+    assessmentQuality: clampRating(params.ratings.assessmentQuality),
+    overallExperience: clampRating(params.ratings.overallExperience),
+  };
+
+  const docData: Record<string, unknown> = {
+    id,
+    userId: params.uid,
+    userDisplayName: (params.userDisplayName || 'SmartEd Learner').slice(0, 120),
+    userEmail: (params.userEmail || 'learner@smarted.local').slice(0, 200),
+    category: params.category,
+    ratings,
+    comment: cleanComment,
+    createdAt: serverTimestamp(),
+  };
+  if (cleanTopic) {
+    docData.topicContext = cleanTopic;
+  }
+
+  try {
+    await setDoc(doc(db, 'feedback', id), docData);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
+
+  return {
+    id,
+    userId: params.uid,
+    userDisplayName: String(docData.userDisplayName),
+    userEmail: String(docData.userEmail),
+    category: params.category,
+    topicContext: cleanTopic || undefined,
+    ratings,
+    comment: cleanComment,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function mapFeedbackDocs(docs: Array<{ id: string; data: (opt?: { serverTimestamps: 'estimate' }) => Record<string, unknown> }>): FeedbackSubmission[] {
+  const list: FeedbackSubmission[] = docs.map((docSnap) => {
+    const d = docSnap.data({ serverTimestamps: 'estimate' });
+    const rawRatings = (d.ratings && typeof d.ratings === 'object' ? d.ratings : {}) as Record<
+      string,
+      unknown
+    >;
+    return {
+      id: docSnap.id,
+      userId: String(d.userId || ''),
+      userDisplayName: String(d.userDisplayName || 'Learner'),
+      userEmail: String(d.userEmail || ''),
+      category:
+        d.category === 'feature' || d.category === 'issue' ? d.category : 'general',
+      topicContext: typeof d.topicContext === 'string' ? d.topicContext : undefined,
+      ratings: {
+        lessonUsefulness: clampRating(Number(rawRatings.lessonUsefulness || 5)),
+        explanationClarity: clampRating(Number(rawRatings.explanationClarity || 5)),
+        assessmentQuality: clampRating(Number(rawRatings.assessmentQuality || 5)),
+        overallExperience: clampRating(Number(rawRatings.overallExperience || 5)),
+      },
+      comment: String(d.comment || ''),
+      createdAt: toIsoString(d.createdAt),
+    };
+  });
+  list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return list;
+}
+
+export async function fetchUserFeedback(uid: string): Promise<FeedbackSubmission[]> {
+  let snap;
+  try {
+    snap = await getDocs(query(collection(db, 'feedback'), where('userId', '==', uid)));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'feedback');
+  }
+  return mapFeedbackDocs(snap.docs);
+}
+
+export async function fetchAllFeedbackForAdmin(): Promise<FeedbackSubmission[]> {
+  let snap;
+  try {
+    snap = await getDocs(collection(db, 'feedback'));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'feedback');
+  }
+  return mapFeedbackDocs(snap.docs);
 }

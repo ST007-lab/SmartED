@@ -1,7 +1,19 @@
 import express from 'express';
-import { ProviderRequestError } from '../ai/geminiProvider.ts';
+import { ProviderRequestError } from '../ai/errors.ts';
 import { buildLessonCacheKey, sharedLessonCache } from '../ai/lessonCache.ts';
-import { getProviderStatus, resolveProvider } from '../ai/provider.ts';
+import {
+  executeWithProviderFallback,
+  getProviderStatus,
+  resolveProvider,
+} from '../ai/provider.ts';
+import {
+  type AuthenticatedRequest,
+  requireFirebaseAuth,
+} from '../middleware/auth.ts';
+import {
+  getConfiguredDailyLessonLimit,
+  usageAndRateLimiter,
+} from '../services/usageLimiter.ts';
 import type {
   AssessmentDifficulty,
   KnowledgeLevel,
@@ -9,27 +21,6 @@ import type {
   QuestionType,
   TutorMode,
 } from '../types.ts';
-
-const UNCACHED_WINDOW_MS = 60_000;
-const MAX_UNCACHED_GENERATIONS_PER_WINDOW = 30;
-const ipGenerationHits = new Map<string, number[]>();
-
-function checkUncachedRateLimit(clientKey: string): boolean {
-  const now = Date.now();
-  const cutoff = now - UNCACHED_WINDOW_MS;
-  const existing = (ipGenerationHits.get(clientKey) ?? []).filter((ts) => ts > cutoff);
-  if (existing.length >= MAX_UNCACHED_GENERATIONS_PER_WINDOW) {
-    ipGenerationHits.set(clientKey, existing);
-    return false;
-  }
-  existing.push(now);
-  ipGenerationHits.set(clientKey, existing);
-  if (ipGenerationHits.size > 5000) {
-    const oldestKey = ipGenerationHits.keys().next().value;
-    if (oldestKey) ipGenerationHits.delete(oldestKey);
-  }
-  return true;
-}
 
 const VALID_LEVELS = new Set<KnowledgeLevel>(['Beginner', 'Intermediate', 'Advanced']);
 const VALID_DIFFICULTIES = new Set<AssessmentDifficulty>(['Easy', 'Medium', 'Hard']);
@@ -60,6 +51,29 @@ function parsePreference(val: unknown): ProviderPreference {
     : 'auto';
 }
 
+function getClientIp(req: express.Request): string {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+function enforceEndpointRateLimit(
+  res: express.Response,
+  scope: string,
+  actorKey: string,
+  maxRequests: number,
+  windowMs = 60_000
+): boolean {
+  const verdict = usageAndRateLimiter.checkRateLimit(scope, actorKey, maxRequests, windowMs);
+  if (!verdict.allowed) {
+    res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+    res.status(429).json({
+      error: `Too many requests in a short period. Please wait ${verdict.retryAfterSeconds}s and try again.`,
+      code: 'RATE_LIMIT',
+    });
+    return false;
+  }
+  return true;
+}
+
 function handleRouteError(res: express.Response, err: unknown) {
   if (err instanceof ProviderRequestError) {
     res.status(err.statusCode).json({
@@ -68,9 +82,9 @@ function handleRouteError(res: express.Response, err: unknown) {
     });
     return;
   }
-  const message = err instanceof Error ? err.message : 'Unexpected server error';
+  console.error('[SmartEd AI Route Error]', err instanceof Error ? err.name : 'UnknownError');
   res.status(500).json({
-    error: message,
+    error: 'An unexpected server error occurred while processing your learning request.',
     code: 'INTERNAL_ERROR',
   });
 }
@@ -78,11 +92,27 @@ function handleRouteError(res: express.Response, err: unknown) {
 export function createAIRouter(): express.Router {
   const router = express.Router();
 
-  router.get('/status', (_req, res) => {
-    res.json(getProviderStatus());
+  // Public non-sensitive capability metadata (rate-limited by IP)
+  router.get('/status', (req, res) => {
+    if (!enforceEndpointRateLimit(res, 'status', getClientIp(req), 120)) return;
+    res.json({
+      ...getProviderStatus(),
+      dailyFreeLessonLimit: getConfiguredDailyLessonLimit(),
+    });
   });
 
-  router.post('/lesson', async (req, res) => {
+  // Protected: check verified user's server-enforced daily lesson allowance
+  router.get('/usage', requireFirebaseAuth, (req: AuthenticatedRequest, res) => {
+    const uid = req.authUser!.uid;
+    if (!enforceEndpointRateLimit(res, 'usage', uid, 60)) return;
+    res.json(usageAndRateLimiter.getDailyUsage(uid));
+  });
+
+  // Protected: generate or retrieve a cached structured 9-section lesson (5/day free limit)
+  router.post('/lesson', requireFirebaseAuth, async (req: AuthenticatedRequest, res) => {
+    const uid = req.authUser!.uid;
+    if (!enforceEndpointRateLimit(res, 'lesson', uid, 12)) return;
+
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
@@ -107,8 +137,8 @@ export function createAIRouter(): express.Router {
           : undefined;
       const preference = parsePreference(body.providerPreference);
 
-      const { adapter, modelOverride } = resolveProvider(preference);
-      const providerScope = `${adapter.id}:${modelOverride ?? 'default'}`;
+      const primaryResolved = resolveProvider(preference, 'lesson');
+      const providerScope = `${primaryResolved.adapter.id}:${primaryResolved.modelOverride ?? 'default'}`;
       const cacheKey = buildLessonCacheKey({
         topic,
         level,
@@ -117,35 +147,64 @@ export function createAIRouter(): express.Router {
         providerScope,
       });
 
-      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-      const { result, cacheHit } = await sharedLessonCache.getOrGenerate(
-        cacheKey,
-        async () => {
-          if (adapter.id !== 'demo' && !checkUncachedRateLimit(clientIp)) {
-            throw new ProviderRequestError(
-              'Too many new uncached lessons requested in a short time. Please wait a moment and try again.',
-              429,
-              'RATE_LIMIT'
-            );
-          }
-          return adapter.generateLesson({
-            topic,
-            level,
-            language,
-            objective,
-            modelOverride,
-          });
+      const quotaKey = buildLessonCacheKey({
+        topic,
+        level,
+        language,
+        objective,
+        providerScope: 'daily-quota',
+      });
+
+      const reservation = usageAndRateLimiter.reserveDailyLessonSlot(uid, quotaKey);
+      if (!reservation.allowed) {
+        res.status(429).json({
+          error: `Daily free limit reached (${reservation.snapshot.dailyLimit} lessons per day). Your allowance resets at ${new Date(
+            reservation.snapshot.resetAtIso
+          ).toUTCString()}.`,
+          code: 'DAILY_LIMIT_REACHED',
+          usage: reservation.snapshot,
+        });
+        return;
+      }
+
+      let result;
+      let cacheHit = false;
+      try {
+        const cachedOrFresh = await sharedLessonCache.getOrGenerate(cacheKey, async () =>
+          executeWithProviderFallback(preference, 'lesson', (candidate) =>
+            candidate.adapter.generateLesson({
+              topic,
+              level,
+              language,
+              objective,
+              modelOverride: candidate.modelOverride,
+            })
+          )
+        );
+        result = cachedOrFresh.result;
+        cacheHit = cachedOrFresh.cacheHit;
+      } catch (genErr) {
+        if (!reservation.alreadyCountedToday) {
+          usageAndRateLimiter.releaseDailyLessonSlot(uid, quotaKey);
         }
-      );
+        throw genErr;
+      }
 
       res.setHeader('X-SmartEd-Cache', cacheHit ? 'HIT' : 'MISS');
-      res.json(result);
+      res.json({
+        ...result,
+        usage: usageAndRateLimiter.getDailyUsage(uid),
+      });
     } catch (err) {
       handleRouteError(res, err);
     }
   });
 
-  router.post('/tutor', async (req, res) => {
+  // Protected: context-aware AI tutor turn
+  router.post('/tutor', requireFirebaseAuth, async (req: AuthenticatedRequest, res) => {
+    const uid = req.authUser!.uid;
+    if (!enforceEndpointRateLimit(res, 'tutor', uid, 25)) return;
+
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const message = typeof body.message === 'string' ? body.message.trim() : '';
@@ -171,7 +230,11 @@ export function createAIRouter(): express.Router {
               (item as { role?: unknown }).role === 'tutor') &&
             typeof (item as { content?: unknown }).content === 'string'
         )
-        .slice(-12);
+        .slice(-10)
+        .map((turn) => ({
+          role: turn.role,
+          content: turn.content.slice(0, 2000),
+        }));
 
       const rawCtx =
         body.lessonContext && typeof body.lessonContext === 'object'
@@ -201,19 +264,22 @@ export function createAIRouter(): express.Router {
                 ? rawCtx.learningObjectives
                     .filter((x): x is string => typeof x === 'string')
                     .slice(0, 6)
+                    .map((x) => x.slice(0, 300))
                 : undefined,
             }
           : undefined;
 
       const preference = parsePreference(body.providerPreference);
-      const { adapter } = resolveProvider(preference);
-      const result = await adapter.respondAsTutor({
-        message,
-        history,
-        mode,
-        lessonContext,
-        providerPreference: preference,
-      });
+      const result = await executeWithProviderFallback(preference, 'tutor', (candidate) =>
+        candidate.adapter.respondAsTutor({
+          message,
+          history,
+          mode,
+          lessonContext,
+          providerPreference: preference,
+          modelOverride: candidate.modelOverride,
+        })
+      );
 
       res.json(result);
     } catch (err) {
@@ -221,7 +287,11 @@ export function createAIRouter(): express.Router {
     }
   });
 
-  router.post('/assessment', async (req, res) => {
+  // Protected: generate topic/lesson-grounded assessment questions
+  router.post('/assessment', requireFirebaseAuth, async (req: AuthenticatedRequest, res) => {
+    const uid = req.authUser!.uid;
+    if (!enforceEndpointRateLimit(res, 'assessment', uid, 12)) return;
+
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
@@ -265,17 +335,19 @@ export function createAIRouter(): express.Router {
           : undefined;
       const preference = parsePreference(body.providerPreference);
 
-      const { adapter } = resolveProvider(preference);
-      const result = await adapter.generateAssessment({
-        topic,
-        level,
-        difficulty,
-        questionCount,
-        questionTypes: finalTypes,
-        language,
-        lessonContextSummary,
-        providerPreference: preference,
-      });
+      const result = await executeWithProviderFallback(preference, 'assessment', (candidate) =>
+        candidate.adapter.generateAssessment({
+          topic,
+          level,
+          difficulty,
+          questionCount,
+          questionTypes: finalTypes,
+          language,
+          lessonContextSummary,
+          providerPreference: preference,
+          modelOverride: candidate.modelOverride,
+        })
+      );
 
       res.json(result);
     } catch (err) {
@@ -283,23 +355,33 @@ export function createAIRouter(): express.Router {
     }
   });
 
-  router.post('/evaluate', async (req, res) => {
+  // Protected: evaluate short/fill-in-the-blank answer
+  router.post('/evaluate', requireFirebaseAuth, async (req: AuthenticatedRequest, res) => {
+    const uid = req.authUser!.uid;
+    if (!enforceEndpointRateLimit(res, 'evaluate', uid, 40)) return;
+
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const questionPrompt =
-        typeof body.questionPrompt === 'string' ? body.questionPrompt.trim() : '';
+        typeof body.questionPrompt === 'string' ? body.questionPrompt.trim().slice(0, 1000) : '';
       const expectedAnswer =
-        typeof body.expectedAnswer === 'string' ? body.expectedAnswer.trim() : '';
+        typeof body.expectedAnswer === 'string' ? body.expectedAnswer.trim().slice(0, 600) : '';
       const userAnswer =
-        typeof body.userAnswer === 'string' ? body.userAnswer.trim() : '';
-      const topic = typeof body.topic === 'string' ? body.topic.trim() : 'General';
+        typeof body.userAnswer === 'string' ? body.userAnswer.trim().slice(0, 1500) : '';
+      const topic =
+        typeof body.topic === 'string' && body.topic.trim()
+          ? body.topic.trim().slice(0, 200)
+          : 'General';
       const questionType: QuestionType = VALID_QUESTION_TYPES.has(
         body.questionType as QuestionType
       )
         ? (body.questionType as QuestionType)
         : 'short_answer';
       const acceptedKeywords = Array.isArray(body.acceptedKeywords)
-        ? body.acceptedKeywords.filter((k): k is string => typeof k === 'string')
+        ? body.acceptedKeywords
+            .filter((k): k is string => typeof k === 'string')
+            .slice(0, 10)
+            .map((k) => k.slice(0, 120))
         : undefined;
 
       if (!questionPrompt || !expectedAnswer) {
@@ -311,16 +393,17 @@ export function createAIRouter(): express.Router {
       }
 
       const preference = parsePreference(body.providerPreference);
-      const { adapter } = resolveProvider(preference);
-      const result = await adapter.evaluateShortAnswer({
-        questionPrompt,
-        questionType,
-        expectedAnswer,
-        acceptedKeywords,
-        userAnswer,
-        topic,
-        providerPreference: preference,
-      });
+      const result = await executeWithProviderFallback(preference, 'evaluate', (candidate) =>
+        candidate.adapter.evaluateShortAnswer({
+          questionPrompt,
+          questionType,
+          expectedAnswer,
+          acceptedKeywords,
+          userAnswer,
+          topic,
+          providerPreference: preference,
+        })
+      );
 
       res.json(result);
     } catch (err) {

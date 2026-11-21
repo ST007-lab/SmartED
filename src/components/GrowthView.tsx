@@ -1,17 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Download,
   ExternalLink,
   Loader2,
+  MessageSquareText,
   RefreshCw,
   Search,
   Users,
 } from 'lucide-react';
 import { getFirebaseProjectUrl } from '../services/firebase';
-import { fetchPlatformGrowthData } from '../services/firestoreSync';
-import type { PlatformGrowthSnapshot } from '../types/learning';
+import {
+  fetchAllFeedbackForAdmin,
+  fetchPlatformGrowthData,
+} from '../services/firestoreSync';
+import type {
+  FeedbackSubmission,
+  PlatformGrowthSnapshot,
+} from '../types/learning';
 
 export const GrowthView: React.FC = () => {
   const [snapshot, setSnapshot] = useState<PlatformGrowthSnapshot | null>(null);
+  const [feedbackList, setFeedbackList] = useState<FeedbackSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -20,8 +29,12 @@ export const GrowthView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchPlatformGrowthData();
+      const [data, feedback] = await Promise.all([
+        fetchPlatformGrowthData(),
+        fetchAllFeedbackForAdmin().catch(() => [] as FeedbackSubmission[]),
+      ]);
       setSnapshot(data);
+      setFeedbackList(feedback);
     } catch (err) {
       setError(
         err instanceof Error
@@ -47,6 +60,95 @@ export const GrowthView: React.FC = () => {
         u.email.toLowerCase().includes(q)
     );
   }, [snapshot, search]);
+
+  const feedbackAverages = useMemo(() => {
+    if (feedbackList.length === 0) return null;
+    const sum = feedbackList.reduce(
+      (acc, f) => ({
+        lessonUsefulness: acc.lessonUsefulness + f.ratings.lessonUsefulness,
+        explanationClarity: acc.explanationClarity + f.ratings.explanationClarity,
+        assessmentQuality: acc.assessmentQuality + f.ratings.assessmentQuality,
+        overallExperience: acc.overallExperience + f.ratings.overallExperience,
+      }),
+      {
+        lessonUsefulness: 0,
+        explanationClarity: 0,
+        assessmentQuality: 0,
+        overallExperience: 0,
+      }
+    );
+    const n = feedbackList.length;
+    return {
+      lessonUsefulness: (sum.lessonUsefulness / n).toFixed(1),
+      explanationClarity: (sum.explanationClarity / n).toFixed(1),
+      assessmentQuality: (sum.assessmentQuality / n).toFixed(1),
+      overallExperience: (sum.overallExperience / n).toFixed(1),
+    };
+  }, [feedbackList]);
+
+  const exportFeedbackJson = () => {
+    const json = JSON.stringify(
+      { exportedAt: new Date().toISOString(), count: feedbackList.length, feedback: feedbackList },
+      null,
+      2
+    );
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `smarted-platform-feedback-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportFeedbackCsv = () => {
+    const escapeCsv = (val: unknown) => {
+      const s = String(val ?? '');
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const header = [
+      'id',
+      'createdAt',
+      'userDisplayName',
+      'userEmail',
+      'category',
+      'topicContext',
+      'lessonUsefulness',
+      'explanationClarity',
+      'assessmentQuality',
+      'overallExperience',
+      'comment',
+    ].join(',');
+    const rows = feedbackList.map((f) =>
+      [
+        f.id,
+        f.createdAt,
+        f.userDisplayName,
+        f.userEmail,
+        f.category,
+        f.topicContext ?? '',
+        f.ratings.lessonUsefulness,
+        f.ratings.explanationClarity,
+        f.ratings.assessmentQuality,
+        f.ratings.overallExperience,
+        f.comment,
+      ]
+        .map(escapeCsv)
+        .join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `smarted-platform-feedback-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-8 pb-12">
@@ -349,6 +451,104 @@ export const GrowthView: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          {/* Learner Feedback & Quality Ratings */}
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-cyan-400" />
+                <h2 className="font-display text-lg font-semibold text-white">
+                  Learner Feedback &amp; Issue Reports ({feedbackList.length})
+                </h2>
+              </div>
+
+              {feedbackList.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={exportFeedbackJson}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 hover:border-sky-500/60 hover:text-sky-300 px-3 py-1.5 min-h-[36px] text-xs font-medium text-slate-200 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Export JSON</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportFeedbackCsv}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 hover:border-cyan-500/60 hover:text-cyan-300 px-3 py-1.5 min-h-[36px] text-xs font-medium text-slate-200 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {feedbackAverages && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-4">
+                  <div className="text-xs text-slate-400">Lesson Usefulness</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-white">
+                    {feedbackAverages.lessonUsefulness} / 5
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-4">
+                  <div className="text-xs text-slate-400">Explanation Clarity</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-white">
+                    {feedbackAverages.explanationClarity} / 5
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-4">
+                  <div className="text-xs text-slate-400">Assessment Quality</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-white">
+                    {feedbackAverages.assessmentQuality} / 5
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-4">
+                  <div className="text-xs text-slate-400">Overall Experience</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-cyan-300">
+                    {feedbackAverages.overallExperience} / 5
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {feedbackList.length === 0 ? (
+              <div className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-6 text-sm text-slate-400">
+                No learner feedback submissions recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-800/70 rounded-xl border border-slate-800/80 bg-[#0B1120]">
+                {feedbackList.slice(0, 12).map((fb) => (
+                  <div key={fb.id} className="p-4 space-y-1.5 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="text-slate-200 font-medium">
+                        {fb.userDisplayName}{' '}
+                        <span className="text-slate-500">({fb.userEmail})</span>
+                        <span className="ml-2 uppercase text-cyan-400">
+                          {fb.category}
+                        </span>
+                        {fb.topicContext && (
+                          <span className="ml-2 text-slate-400">
+                            · {fb.topicContext}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono text-xs text-slate-400">
+                        Overall {fb.ratings.overallExperience}/5 ·{' '}
+                        {new Date(fb.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {fb.comment && (
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {fb.comment}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </>
       ) : null}

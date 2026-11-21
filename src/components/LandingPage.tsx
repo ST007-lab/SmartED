@@ -9,6 +9,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { BlueprintGridDecor, CornerBracketFrame } from './ArchitecturalDecor';
+import { LegalSupportModal, type LegalTab } from './LegalSupportModal';
 import { SrvLogo } from './SrvLogo';
 
 interface LandingPageProps {
@@ -64,6 +65,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   authError,
 }) => {
   const [imageFailed, setImageFailed] = useState(false);
+  const [legalTab, setLegalTab] = useState<LegalTab | null>(null);
 
   return (
     <div className="min-h-screen bg-[#060913] text-slate-100 flex flex-col">
@@ -192,7 +194,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <div className="pt-2 text-xs text-slate-400">
-                Google Sign-In · Cloud Firestore Sync · Beginner to Advanced
+                Google Sign-In · Cloud Firestore Sync · Up to 5 Free Structured Lessons / Day
               </div>
             </div>
 
@@ -387,29 +389,73 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         id="st-group"
         className="border-t border-slate-800/80 bg-[#060913] py-10"
       >
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <SrvLogo size={32} />
-            <div>
-              <div className="font-display text-base font-bold text-white">
-                SmartEd by ST Group
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <SrvLogo size={32} />
+              <div>
+                <div className="font-display text-base font-bold text-white">
+                  SmartEd by ST Group
+                </div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  Learn Anything. Understand Everything. · Founder: John Nikson
+                </div>
               </div>
-              <div className="mt-0.5 text-xs text-slate-400">
-                Learn Anything. Understand Everything.
-              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-5 text-xs">
+              <button
+                type="button"
+                onClick={() => setLegalTab('privacy')}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Privacy
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalTab('terms')}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Terms
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalTab('ai-disclosure')}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                AI Content Notice
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalTab('support')}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Support
+              </button>
+              <button
+                type="button"
+                onClick={onSignIn}
+                disabled={isSigningIn}
+                className="font-medium text-sky-400 hover:text-sky-300 transition-colors"
+              >
+                Sign in with Google
+              </button>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onSignIn}
-            disabled={isSigningIn}
-            className="text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"
-          >
-            Sign in with Google
-          </button>
+          <p className="text-[11px] text-slate-500 border-t border-slate-800/60 pt-4">
+            AI-Generated Content Notice: Live lessons, tutor responses, and assessment items
+            are generated dynamically by AI models for educational guidance. Please verify
+            critical academic or technical facts with primary references.
+          </p>
         </div>
       </footer>
+
+      <LegalSupportModal
+        open={legalTab !== null}
+        initialTab={legalTab ?? 'privacy'}
+        onClose={() => setLegalTab(null)}
+      />
     </div>
   );
 };

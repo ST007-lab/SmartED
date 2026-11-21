@@ -256,3 +256,33 @@ export interface PlatformGrowthSnapshot {
   levelDistribution: Record<KnowledgeLevel, number>;
   users: UserProfileRecord[];
 }
+
+export interface UsageQuotaInfo {
+  dailyLimit: number;
+  usedToday: number;
+  remainingToday: number;
+  resetAtIso: string;
+  dateUtc: string;
+}
+
+export type FeedbackCategory = 'general' | 'feature' | 'issue';
+
+export interface FeedbackRatings {
+  lessonUsefulness: number;
+  explanationClarity: number;
+  assessmentQuality: number;
+  overallExperience: number;
+}
+
+export interface FeedbackSubmission {
+  id: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  category: FeedbackCategory;
+  topicContext?: string;
+  ratings: FeedbackRatings;
+  comment: string;
+  createdAt: string;
+}
+

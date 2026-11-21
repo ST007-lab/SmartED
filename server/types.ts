@@ -186,9 +186,11 @@ export interface AIProviderAdapter {
     objective?: string;
     modelOverride?: string;
   }): Promise<LessonGenerationResult>;
-  respondAsTutor(params: TutorRequestPayload): Promise<TutorResponseResult>;
+  respondAsTutor(
+    params: TutorRequestPayload & { modelOverride?: string }
+  ): Promise<TutorResponseResult>;
   generateAssessment(
-    params: AssessmentGenerationRequest
+    params: AssessmentGenerationRequest & { modelOverride?: string }
   ): Promise<AssessmentGenerationResult>;
   evaluateShortAnswer(
     params: AnswerEvaluationRequest

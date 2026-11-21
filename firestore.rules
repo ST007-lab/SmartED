@@ -450,6 +450,75 @@ service cloud.firestore {
       }
     }
 
+    function isValidRating(n) {
+      return n is int && n >= 1 && n <= 5;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'userDisplayName',
+          'userEmail',
+          'category',
+          'ratings',
+          'comment',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'userDisplayName',
+          'userEmail',
+          'category',
+          'topicContext',
+          'ratings',
+          'comment',
+          'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.userDisplayName is string && data.userDisplayName.size() >= 1 && data.userDisplayName.size() <= 120
+        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 200
+        && data.category in ['general', 'feature', 'issue']
+        && (!('topicContext' in data) || (data.topicContext is string && data.topicContext.size() <= 200))
+        && data.ratings is map
+        && data.ratings.keys().hasAll([
+          'lessonUsefulness',
+          'explanationClarity',
+          'assessmentQuality',
+          'overallExperience'
+        ])
+        && data.ratings.keys().hasOnly([
+          'lessonUsefulness',
+          'explanationClarity',
+          'assessmentQuality',
+          'overallExperience'
+        ])
+        && isValidRating(data.ratings.lessonUsefulness)
+        && isValidRating(data.ratings.explanationClarity)
+        && isValidRating(data.ratings.assessmentQuality)
+        && isValidRating(data.ratings.overallExperience)
+        && data.comment is string && data.comment.size() <= 2000
+        && data.createdAt is timestamp;
+    }
+
+    // Learner feedback & issue reports (owner + admin readable, immutable)
+    match /feedback/{feedbackId} {
+      allow get: if isValidId(feedbackId) && ((isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin());
+      allow list: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+
+      allow create: if isValidId(feedbackId)
+        && isVerifiedUser()
+        && isValidFeedback(incoming())
+        && incoming().id == feedbackId
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(feedbackId) && isAdmin();
+    }
+
     // Collection-group read access strictly for verified platform admin analytics
     match /{path=**}/lessons/{lessonId} {
       allow list, get: if isAdmin();

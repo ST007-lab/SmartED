@@ -1,19 +1,32 @@
 import React, { useState } from 'react';
-import { Check, Download, Trash2 } from 'lucide-react';
+import {
+  Check,
+  Download,
+  HelpCircle,
+  MessageSquarePlus,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../data/suggestedTopics';
 import type {
   KnowledgeLevel,
   ProviderPreference,
   ProviderStatusInfo,
+  UsageQuotaInfo,
   UserPreferences,
 } from '../types/learning';
+import type { LegalTab } from './LegalSupportModal';
 
 interface SettingsViewProps {
   preferences: UserPreferences;
   providerStatus: ProviderStatusInfo | null;
+  usageQuota: UsageQuotaInfo | null;
   onUpdatePreferences: (patch: Partial<UserPreferences>) => void;
   onExportData: () => void;
   onClearAllData: () => void;
+  onOpenOnboarding: () => void;
+  onOpenFeedback: () => void;
+  onOpenLegal: (tab: LegalTab) => void;
 }
 
 const LEVELS: KnowledgeLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -21,9 +34,13 @@ const LEVELS: KnowledgeLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 export const SettingsView: React.FC<SettingsViewProps> = ({
   preferences,
   providerStatus,
+  usageQuota,
   onUpdatePreferences,
   onExportData,
   onClearAllData,
+  onOpenOnboarding,
+  onOpenFeedback,
+  onOpenLegal,
 }) => {
   const [confirmClear, setConfirmClear] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
@@ -46,8 +63,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             Settings &amp; Preferences
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Configure your default learning level, language, AI inference mode, and
-            locally persisted study data.
+            Configure your default learning level, language, AI inference mode, daily
+            usage allowance, and cloud study data.
           </p>
         </div>
 
@@ -58,6 +75,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </span>
         )}
       </div>
+
+      {/* Server-Enforced Daily Allowance */}
+      <section className="rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-white">
+              Daily Learning Allowance
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">
+              Free accounts include up to {usageQuota?.dailyLimit ?? 5} new lessons per UTC day.
+              Saved lessons and repeated study sessions do not use extra daily quota.
+            </p>
+          </div>
+          {usageQuota && (
+            <div className="rounded-xl border border-slate-800 bg-[#060913] px-4 py-2.5 text-right">
+              <div className="font-mono text-lg font-bold tabular-nums text-cyan-300">
+                {usageQuota.usedToday} / {usageQuota.dailyLimit}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                {usageQuota.remainingToday} remaining today
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Learning Defaults */}
       <section className="rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6 space-y-6">
@@ -116,8 +158,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             AI Inference Engine
           </h2>
           <p className="mt-1 text-xs text-slate-400 leading-relaxed">
-            SmartEd routes all AI generation through secure server-side endpoints. Choose
-            Automatic selection or pick a specific available engine below.
+            SmartEd routes all AI generation through authenticated server-side endpoints.
+            Choose Automatic selection or pick a specific available engine below.
           </p>
         </div>
 
@@ -142,8 +184,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-400">
-              Uses the primary configured live AI model on the server and gracefully
-              falls back to Demonstration Mode if no live provider is configured.
+              Selects the best available live model per request type and safely falls back
+              if a model is busy.
             </p>
           </button>
 
@@ -193,11 +235,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
+      {/* Help, Feedback & Governance */}
+      <section className="rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6 space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-white">
+            Help, Feedback &amp; Governance
+          </h2>
+          <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+            SmartEd is built by ST Group (Founder: John Nikson). Review our policies, AI
+            content disclosure, or share structured product feedback.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenOnboarding}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 hover:border-sky-500/50 hover:text-sky-300 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-200 transition-colors"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            <span>How SmartEd Works</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenFeedback}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 hover:border-cyan-500/50 hover:text-cyan-300 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-200 transition-colors"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            <span>Submit Feedback / Report Issue</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenLegal('privacy')}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 hover:border-slate-500 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-300 transition-colors"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Privacy Policy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenLegal('terms')}
+            className="rounded-lg border border-slate-700 hover:border-slate-500 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-300 transition-colors"
+          >
+            Terms of Service
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenLegal('ai-disclosure')}
+            className="rounded-lg border border-slate-700 hover:border-slate-500 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-300 transition-colors"
+          >
+            AI Content Notice
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenLegal('support')}
+            className="rounded-lg border border-slate-700 hover:border-slate-500 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-300 transition-colors"
+          >
+            Support
+          </button>
+        </div>
+      </section>
+
       {/* Privacy & Cloud Data Management */}
       <section className="rounded-2xl border border-slate-800/80 bg-[#0B1120] p-6 space-y-5">
         <div>
           <h2 className="font-display text-lg font-semibold text-white">
-            Data &amp; Privacy
+            Data &amp; Privacy Controls
           </h2>
           <p className="mt-1.5 text-sm text-slate-300 leading-relaxed">
             Your saved lessons, assessment scores, tutor conversations, and learning
