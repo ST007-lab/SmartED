@@ -382,6 +382,68 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </div>
         </section>
+
+        {/* Study Subjects & Education FAQ */}
+        <section
+          id="study-faq"
+          className="border-t border-slate-800/70 py-16 sm:py-20"
+        >
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <div className="lg:col-span-5 space-y-4">
+              <p className="text-xs font-medium text-cyan-400">
+                Universal Study &amp; Education
+              </p>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-white">
+                Built for every student, educator, and self-learner
+              </h2>
+              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+                Whether you are preparing for school exams, revising university coursework,
+                mastering programming, or exploring science and humanities, SmartEd turns
+                any study question into a clear learning path.
+              </p>
+              <ul className="space-y-2 pt-2 text-sm text-slate-300">
+                <li>• Mathematics, Calculus, Linear Algebra &amp; Statistics</li>
+                <li>• Physics, Chemistry, Biology &amp; Environmental Science</li>
+                <li>• Computer Science, Software Engineering &amp; AI Concepts</li>
+                <li>• Economics, History, Literature, Languages &amp; Exam Prep</li>
+              </ul>
+            </div>
+
+            <div className="lg:col-span-7 space-y-4">
+              <article className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-5 space-y-2">
+                <h3 className="font-display text-base font-semibold text-white">
+                  What is SmartEd and how does it help you study and learn?
+                </h3>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  SmartEd by ST Group is an AI-powered personal teacher that builds
+                  structured 9-section study guides on any topic, explains tough concepts
+                  in multiple modes, and checks your mastery with graded quizzes.
+                </p>
+              </article>
+
+              <article className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-5 space-y-2">
+                <h3 className="font-display text-base font-semibold text-white">
+                  Can beginners and advanced students both use SmartEd?
+                </h3>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Yes. Before generating a lesson or quiz, you choose Beginner,
+                  Intermediate, or Advanced depth along with your preferred language and
+                  study objective so every explanation matches your background.
+                </p>
+              </article>
+
+              <article className="rounded-xl border border-slate-800/80 bg-[#0B1120] p-5 space-y-2">
+                <h3 className="font-display text-base font-semibold text-white">
+                  Is SmartEd free to start studying?
+                </h3>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Yes. Sign in with Google to receive free daily structured AI lessons,
+                  personal AI tutoring, interactive assessments, and synced study progress.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
       </main>
 
       {/* Quiet Footer */}

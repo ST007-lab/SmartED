@@ -43,6 +43,67 @@ async function startServer() {
     }
   );
 
+  const GOOGLE_VERIFICATION_FILE = path.resolve(
+    __dirname,
+    'public/assets/aistudio/googlec04a40a791ecc81e_9483ab8a.html'
+  );
+  const OG_IMAGE_FILE = path.resolve(
+    __dirname,
+    'src/assets/images/hero_smarted_workspace_1794738910334.jpg'
+  );
+
+  const resolvePublicBaseUrl = (req: express.Request): string => {
+    const envUrl = process.env.APP_URL?.trim();
+    if (envUrl && /^https?:\/\//i.test(envUrl) && !envUrl.includes('MY_APP_URL')) {
+      return envUrl.replace(/\/+$/, '');
+    }
+    const host = req.get('host');
+    return host ? `${req.protocol}://${host}` : '';
+  };
+
+  // Google Search Console HTML file verification
+  app.get('/googlec04a40a791ecc81e.html', (_req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(GOOGLE_VERIFICATION_FILE);
+  });
+
+  // Search crawler directives with dynamic Sitemap URL
+  app.get('/robots.txt', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    const sitemapLine = baseUrl ? `\nSitemap: ${baseUrl}/sitemap.xml\n` : '\n';
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(`User-agent: *\nAllow: /\nDisallow: /api/${sitemapLine}`);
+  });
+
+  // Dynamic XML Sitemap for search engines
+  app.get('/sitemap.xml', (req, res) => {
+    const baseUrl =
+      resolvePublicBaseUrl(req) ||
+      'https://ais-pre-3mc27nzhqb3z5dmtegfnpp-874570488382.asia-southeast1.run.app';
+    const lastMod = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+        `  <url>\n` +
+        `    <loc>${baseUrl}/</loc>\n` +
+        `    <lastmod>${lastMod}</lastmod>\n` +
+        `    <changefreq>daily</changefreq>\n` +
+        `    <priority>1.0</priority>\n` +
+        `  </url>\n` +
+        `</urlset>\n`
+    );
+  });
+
+  // Social share OpenGraph image
+  app.get('/og-smarted.jpg', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.sendFile(OG_IMAGE_FILE);
+  });
+
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'smarted-backend' });
   });

@@ -128,6 +128,30 @@ export default function App() {
 
   const isAdmin = isPlatformAdminUser(firebaseUser);
 
+  // Dynamically resolve canonical & social URLs for SPA routes
+  useEffect(() => {
+    const currentUrl = window.location.origin + window.location.pathname;
+    const ogImageUrl = `${window.location.origin}/og-smarted.jpg`;
+
+    const canonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (canonicalEl) {
+      canonicalEl.href = currentUrl;
+    }
+
+    const metaUpdates: Array<[string, string]> = [
+      ['meta[property="og:url"]', currentUrl],
+      ['meta[property="og:image"]', ogImageUrl],
+      ['meta[name="twitter:image"]', ogImageUrl],
+    ];
+
+    for (const [selector, value] of metaUpdates) {
+      const el = document.querySelector<HTMLMetaElement>(selector);
+      if (el) {
+        el.content = value;
+      }
+    }
+  }, []);
+
   // Check server AI provider availability
   useEffect(() => {
     fetchProviderStatus()
